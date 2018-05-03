@@ -49,16 +49,13 @@ import com.riscure.signalanalysis.TraceSet;
 import com.riscure.signalanalysis.operations.DataOperationException;
 
 /**
- * Wrapper to call Jlsca from Inspector. Set JLSCA_PATH to wherever you installed Jlsca, and
- * make sure the julia executable is in your path, or fail!
+ * Wrapper to call Jlsca from Inspector. Make sure the julia executable is in your path, or fail!
  *
  * @author Cees-Bart Breunesse <ceesb@riscure.com>
  *
  */
 public class Jlsca4InspectorModule extends Module implements ModuleInChain {
   private static final long serialVersionUID = 1L;
-
-  static String JLSCA_PATH="/home/ceesb/projects/jlsca";
 
   boolean running = false;
 
@@ -134,10 +131,9 @@ public class Jlsca4InspectorModule extends Module implements ModuleInChain {
   }
 
   void startJlscaProcess(String parameters, int nrOfSamples) throws IOException {
-    String expr = String.format("using Sca, Trs; %s; trs = InspectorTrace(%s); numberOfAverages = length(params.keyByteOffsets); numberOfCandidates = getNumberOfCandidates(params); setPostProcessor(trs, CondAvg, numberOfAverages, numberOfCandidates); sca(trs, params, 1, length(trs), false)", parameters, Platform.isWindows() ? "\\\"-\\\"" : "\"-\"");
+    String expr = String.format("using Jlsca.Sca, Jlsca.Trs; %s; trs = InspectorTrace(%s); setPostProcessor(trs, CondAvg()); sca(trs, params, 1, length(trs))", parameters, Platform.isWindows() ? "\\\"-\\\"" : "\"-\"");
     log("Jlsca params: " + expr);
-    ProcessBuilder pb = new ProcessBuilder("julia", "-Lsca.jl", "-e", expr);
-    pb.directory(new File(JLSCA_PATH));
+    ProcessBuilder pb = new ProcessBuilder("julia", "-e", expr);
 
     p = pb.start();
     toJlscaStream = new BufferedOutputStream(p.getOutputStream(), nrOfSamples*4);
@@ -591,7 +587,7 @@ public class Jlsca4InspectorModule extends Module implements ModuleInChain {
       attackModel.setSelectedItem((String)module.get(ATTACKABLE));
       xorCheckBox.setSelected((Boolean)module.get(XOR));
       phaseModel.setSelectedItem((String)module.get(PHASE));
-      phaseInputTextField.setText((String)module.get(PHASEINPUT));
+      phaseInputTextField.setText((String)module.phaseInput);
       updateIntervalField.setText((String)module.get(UPDATEINTERVAL));
       analysisGroup.setSelected(actionCommandToButtonModel(analysisGroup, (String)module.get(ANALYSIS)), true);
       leakagesModel.setSelectedItem((String)module.get(LEAKAGE));
@@ -971,7 +967,7 @@ public class Jlsca4InspectorModule extends Module implements ModuleInChain {
       }
 
       if(analysisGroup.getSelection().getActionCommand() == CPA) {
-        s += "params.analysis = Sca.DPA(); params.analysis.statistic = cor; ";
+        s += "params.analysis = Sca.CPA(); ";
         if(leakagesModel.getSelectedItem() == ALLBITS) {
           int bits = 0;
           if(algoGroup.getSelection().getActionCommand() == AES) {
@@ -983,13 +979,13 @@ public class Jlsca4InspectorModule extends Module implements ModuleInChain {
           else {
             bits = 3;
           }
-          s += String.format("params.analysis.leakageFunctions = [x -> ((x .>> i) & 1) for i in 0:%d ]; ", bits);
+          s += String.format("params.analysis.leakages = [Bit(i) for i in 0:%d ]; ", bits);
         }
         else if(leakagesModel.getSelectedItem() == BIT0) {
-          s += String.format("params.analysis.leakageFunctions = [x -> x & 1]; ", updateInterval);
+          s += String.format("params.analysis.leakages = [Bit(0)]; ", updateInterval);
         }
         else if(leakagesModel.getSelectedItem() == HW) {
-          s += String.format("params.analysis.leakageFunctions = [Sca.hw]; ", updateInterval);
+          s += String.format("params.analysis.leakages = [HW()]; ", updateInterval);
         }
       }
       else if(analysisGroup.getSelection().getActionCommand() == LRA) {
